@@ -98,19 +98,24 @@ if 'user_email' not in st.session_state: st.session_state['user_email'] = None
 
 # --- LÓGICA DE INSIGHTS AVANÇADOS (CRM INTELLIGENCE) ---
 def calculate_kpis(df):
+    # CORREÇÃO: Agora retorna 7 valores mesmo se estiver vazio
     if df.empty:
-        return 0, 0, 0, 0, 0, "Sem dados"
+        return 0, 0, 0, 0, 0, 0, 0
 
     receitas = df[df['type'] == 'Receita']['amount'].sum()
     despesas = df[df['type'] == 'Despesa']['amount'].sum()
     saldo = receitas - despesas
     
     # 1. Burn Rate (Gasto Médio Diário)
-    # Pega o range de datas
     df['date_dt'] = pd.to_datetime(df['date'])
-    dias_ativos = (df['date_dt'].max() - df['date_dt'].min()).days + 1
-    if dias_ativos < 1: dias_ativos = 1
-    burn_rate = despesas / dias_ativos
+    
+    # Evita divisão por zero ou datas iguais
+    if df['date_dt'].max() == df['date_dt'].min():
+        dias_ativos = 1
+    else:
+        dias_ativos = (df['date_dt'].max() - df['date_dt'].min()).days + 1
+        
+    burn_rate = despesas / dias_ativos if dias_ativos > 0 else 0
 
     # 2. Runway (Dias de Sobrevivência)
     runway = 0
