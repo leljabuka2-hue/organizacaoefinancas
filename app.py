@@ -8,8 +8,23 @@ from dateutil.relativedelta import relativedelta
 from streamlit_option_menu import option_menu
 import time
 
-# --- 1. CONFIGURAÇÃO INICIAL (NOME ATUALIZADO) ---
+# --- 1. CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="FinanSaas", page_icon="💎", layout="wide")
+
+# --- 2. DEFINIÇÃO DE CORES DAS CATEGORIAS (CONSISTÊNCIA VISUAL) ---
+CATEGORY_COLORS = {
+    "Alimentação": "#FF9F43",   # Laranja
+    "Moradia": "#54A0FF",       # Azul
+    "Transporte": "#F368E0",    # Rosa
+    "Lazer": "#00D2D3",         # Turquesa
+    "Saúde": "#FF6B6B",         # Vermelho
+    "Educação": "#5F27CD",      # Roxo
+    "Salário": "#1DD1A1",       # Verde Claro
+    "Investimento": "#222F3E",  # Azul Escuro
+    "Assinaturas": "#8395A7",   # Cinza Azulado
+    "Compras": "#FF9FF3",       # Rosa Claro
+    "Outros": "#C8D6E5"         # Cinza Claro
+}
 
 # --- CSS PERSONALIZADO ---
 def inject_custom_css():
@@ -63,9 +78,8 @@ def inject_custom_css():
 
 inject_custom_css()
 
-# --- FUNÇÕES UTILITÁRIAS DE SEGURANÇA ---
+# --- FUNÇÕES UTILITÁRIAS ---
 def safe_float(val):
-    """Converte qualquer coisa para float de forma segura."""
     if val is None: return 0.0
     try: return float(val)
     except (ValueError, TypeError): return 0.0
@@ -134,7 +148,6 @@ if not st.session_state['user_email']:
     col1, col2, col3 = st.columns([1,1,1])
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        # NOME ATUALIZADO NO LOGIN
         st.markdown("""
         <div class="login-card">
             <h1>💎 FinanSaas</h1>
@@ -169,7 +182,7 @@ if not st.session_state['user_email']:
     st.stop() 
 
 # ==================================================================================================
-# APLICAÇÃO PRINCIPAL (SÓ CARREGA SE LOGADO)
+# APLICAÇÃO PRINCIPAL
 # ==================================================================================================
 
 db_data = get_user_data()
@@ -229,8 +242,7 @@ with st.sidebar:
     ref_date = datetime(sel_ano, sel_mes, 1)
     
     st.markdown("---")
-    # NOME ATUALIZADO NA SIDEBAR
-    st.caption("FinanSaas v1.0")
+    st.caption("FinanSaas v1.1")
     selected = option_menu(
         menu_title=None,
         options=["Dashboard", "Extrato", "Cadastros", "Metas", "Nova Transação"],
@@ -265,18 +277,26 @@ if selected == "Dashboard":
         st.markdown('<div class="white-card"><h5>Fluxo Diário</h5>', unsafe_allow_html=True)
         if not df_view.empty:
             daily = df_view.groupby('date')['amount'].sum().reset_index()
-            fig = px.bar(daily, x='date', y='amount')
+            fig = px.bar(daily, x='date', y='amount', color_discrete_sequence=['#2D9CDB'])
             fig.update_layout(height=250, margin=dict(l=0,r=0,t=0,b=0))
             st.plotly_chart(fig, use_container_width=True)
         else: st.info("Sem dados.")
         st.markdown('</div>', unsafe_allow_html=True)
 
     with g2:
-        st.markdown('<div class="white-card"><h5>Categorias</h5>', unsafe_allow_html=True)
+        st.markdown('<div class="white-card"><h5>Por Categoria</h5>', unsafe_allow_html=True)
         if not df_view.empty:
             df_pie = df_view[df_view['type']=='Despesa']
             if not df_pie.empty:
-                fig = px.pie(df_pie, values='amount', names='category', hole=0.6)
+                # --- CORREÇÃO 1: CORES FIXAS NAS CATEGORIAS ---
+                fig = px.pie(
+                    df_pie, 
+                    values='amount', 
+                    names='category', 
+                    hole=0.6,
+                    color='category', # Mapeia pela coluna categoria
+                    color_discrete_map=CATEGORY_COLORS # Usa nosso dicionário
+                )
                 fig.update_layout(height=250, showlegend=False, margin=dict(l=0,r=0,t=0,b=0))
                 st.plotly_chart(fig, use_container_width=True)
             else: st.info("Sem despesas.")
@@ -292,8 +312,7 @@ elif selected == "Extrato":
         df_edit['Excluir'] = False
         contas = db_data.get('accounts', []) + [c['name'] for c in db_data.get('cards', [])]
         
-        # 3. CATEGORIAS RESTAURADAS E EXPANDIDAS
-        full_categories = ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Educação", "Salário", "Investimento", "Assinaturas", "Compras", "Outros"]
+        cats = list(CATEGORY_COLORS.keys())
 
         edited = st.data_editor(
             df_edit,
@@ -304,7 +323,7 @@ elif selected == "Extrato":
                 "amount": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
                 "type": st.column_config.SelectboxColumn("Tipo", options=["Receita", "Despesa"]),
                 "account": st.column_config.SelectboxColumn("Conta", options=contas),
-                "category": st.column_config.SelectboxColumn("Categoria", options=full_categories),
+                "category": st.column_config.SelectboxColumn("Categoria", options=cats),
                 "status": st.column_config.SelectboxColumn("Status", options=["Pago", "Pendente"]),
             },
             hide_index=True, use_container_width=True, num_rows="dynamic"
@@ -351,8 +370,7 @@ elif selected == "Cadastros":
 
 elif selected == "Metas":
     st.markdown("### 🎯 Metas")
-    
-    st.info("Você pode editar os valores das metas diretamente na tabela abaixo.")
+    st.info("Você pode editar os valores e cores diretamente na tabela abaixo.")
 
     current_goals = db_data.get('goals', [])
     
@@ -370,6 +388,7 @@ elif selected == "Metas":
 
     gdf['Excluir'] = False
 
+    # --- CORREÇÃO 2: ColorColumn PARA PICKER DE CORES ---
     edited_goals = st.data_editor(
         gdf,
         column_config={
@@ -377,7 +396,7 @@ elif selected == "Metas":
             "name": st.column_config.TextColumn("Nome da Meta", required=True),
             "target": st.column_config.NumberColumn("Valor Alvo (R$)", min_value=0.0, format="R$ %.2f"),
             "current": st.column_config.NumberColumn("Valor Atual (R$)", min_value=0.0, format="R$ %.2f"),
-            "color": st.column_config.TextColumn("Cor (Hex)", help="Ex: #FF0000"),
+            "color": st.column_config.ColorColumn("Cor da Meta", help="Escolha uma cor"), # AQUI MUDOU
         },
         num_rows="dynamic",
         use_container_width=True,
@@ -418,11 +437,8 @@ elif selected == "Nova Transação":
     
     st.markdown('<div class="white-card">', unsafe_allow_html=True)
     
-    # --- 2. FUNCIONALIDADE DE APORTE EM METAS ---
-    # Dividir a tela em Abas para melhor UX
     tab_tx, tab_meta = st.tabs(["Movimentação Comum", "Enviar para Meta 🎯"])
     
-    # --- ABA 1: TRANSAÇÃO COMUM ---
     with tab_tx:
         with st.form("nt"):
             tipo = st.selectbox("Tipo", ["Despesa", "Receita"])
@@ -432,8 +448,7 @@ elif selected == "Nova Transação":
             contas = db_data.get('accounts', []) + [c['name'] for c in db_data.get('cards', [])]
             acc = c2.selectbox("Conta", contas)
             
-            # 3. LISTA DE CATEGORIAS RESTAURADA
-            cats = ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Educação", "Salário", "Investimento", "Assinaturas", "Compras", "Outros"]
+            cats = list(CATEGORY_COLORS.keys()) # Usa as chaves do dicionário
             cat = st.selectbox("Categoria", cats)
             
             stt = st.radio("Status", ["Pago", "Pendente"], horizontal=True)
@@ -444,7 +459,6 @@ elif selected == "Nova Transação":
                 save_user_data(db_data)
                 st.success("Salvo!")
 
-    # --- ABA 2: APORTE EM META ---
     with tab_meta:
         st.info("Isso criará uma despesa na conta de origem e aumentará o saldo da meta automaticamente.")
         current_goals = db_data.get('goals', [])
@@ -458,15 +472,12 @@ elif selected == "Nova Transação":
                 c_m1, c_m2 = st.columns(2)
                 dt_m = c_m1.date_input("Data do Aporte", datetime.now())
                 
-                # Conta de Origem
                 acc_origin = c_m2.selectbox("Sairá de qual conta?", db_data.get('accounts', []) + [c['name'] for c in db_data.get('cards', [])])
                 
-                # Meta de Destino
                 goal_names = [g['name'] for g in current_goals]
                 target_goal_name = st.selectbox("Para qual meta?", goal_names)
                 
                 if st.form_submit_button("Realizar Aporte"):
-                    # 1. Cria a Despesa na Conta
                     nt = {
                         "id": int(datetime.now().timestamp()), 
                         "date": dt_m.strftime("%Y-%m-%d"), 
@@ -479,7 +490,6 @@ elif selected == "Nova Transação":
                     }
                     db_data['transactions'].append(nt)
                     
-                    # 2. Atualiza o Valor da Meta
                     for g in db_data['goals']:
                         if g['name'] == target_goal_name:
                             current_val = safe_float(g.get('current', 0))
