@@ -8,8 +8,8 @@ from dateutil.relativedelta import relativedelta
 from streamlit_option_menu import option_menu
 import time
 
-# --- CONFIGURAÇÃO INICIAL ---
-st.set_page_config(page_title="FinSaaS Seguro", page_icon="🔐", layout="wide")
+# --- 1. CONFIGURAÇÃO INICIAL (NOME ATUALIZADO) ---
+st.set_page_config(page_title="FinanSaas", page_icon="💎", layout="wide")
 
 # --- CSS PERSONALIZADO ---
 def inject_custom_css():
@@ -65,13 +65,10 @@ inject_custom_css()
 
 # --- FUNÇÕES UTILITÁRIAS DE SEGURANÇA ---
 def safe_float(val):
-    """Converte qualquer coisa para float de forma segura, evitando erros de App."""
-    if val is None:
-        return 0.0
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return 0.0
+    """Converte qualquer coisa para float de forma segura."""
+    if val is None: return 0.0
+    try: return float(val)
+    except (ValueError, TypeError): return 0.0
 
 # --- GESTÃO DE DADOS (JSON MULTI-USER) ---
 DB_FILE = 'finsaas_secure_db.json'
@@ -109,11 +106,9 @@ def login_user(email, password):
 
 def register_user(name, email, password):
     db = load_full_db()
-    if email in db['users']:
-        return False 
+    if email in db['users']: return False 
     
     db['users'][email] = {"name": name, "password": password}
-    
     db['data'][email] = {
         "transactions": [],
         "cards": [],
@@ -139,9 +134,10 @@ if not st.session_state['user_email']:
     col1, col2, col3 = st.columns([1,1,1])
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
+        # NOME ATUALIZADO NO LOGIN
         st.markdown("""
         <div class="login-card">
-            <h1>🔐 FinSaaS</h1>
+            <h1>💎 FinanSaas</h1>
             <p>Gerencie suas finanças com segurança.</p>
         </div>
         """, unsafe_allow_html=True)
@@ -197,7 +193,7 @@ def process_data(user_db, selected_date):
         return empty, empty, 0.0
 
     df['date'] = pd.to_datetime(df['date'])
-    df['amount'] = df['amount'].apply(safe_float) # Usa safe_float para garantir
+    df['amount'] = df['amount'].apply(safe_float)
     
     def get_competence(row):
         if row.get('account') in cards and row.get('type') == 'Despesa':
@@ -233,6 +229,8 @@ with st.sidebar:
     ref_date = datetime(sel_ano, sel_mes, 1)
     
     st.markdown("---")
+    # NOME ATUALIZADO NA SIDEBAR
+    st.caption("FinanSaas v1.0")
     selected = option_menu(
         menu_title=None,
         options=["Dashboard", "Extrato", "Cadastros", "Metas", "Nova Transação"],
@@ -294,6 +292,9 @@ elif selected == "Extrato":
         df_edit['Excluir'] = False
         contas = db_data.get('accounts', []) + [c['name'] for c in db_data.get('cards', [])]
         
+        # 3. CATEGORIAS RESTAURADAS E EXPANDIDAS
+        full_categories = ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Educação", "Salário", "Investimento", "Assinaturas", "Compras", "Outros"]
+
         edited = st.data_editor(
             df_edit,
             column_config={
@@ -303,7 +304,7 @@ elif selected == "Extrato":
                 "amount": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
                 "type": st.column_config.SelectboxColumn("Tipo", options=["Receita", "Despesa"]),
                 "account": st.column_config.SelectboxColumn("Conta", options=contas),
-                "category": st.column_config.SelectboxColumn("Categoria", options=["Alimentação", "Moradia", "Lazer", "Transporte", "Saúde", "Salário", "Outros"]),
+                "category": st.column_config.SelectboxColumn("Categoria", options=full_categories),
                 "status": st.column_config.SelectboxColumn("Status", options=["Pago", "Pendente"]),
             },
             hide_index=True, use_container_width=True, num_rows="dynamic"
@@ -324,7 +325,6 @@ elif selected == "Cadastros":
         cdf = pd.DataFrame(db_data.get('cards', []))
         if cdf.empty: cdf = pd.DataFrame(columns=["name", "limit", "closing_day", "due_day"])
         
-        # Garante tipos numéricos usando safe_float
         if 'limit' in cdf.columns: cdf['limit'] = cdf['limit'].apply(safe_float)
         if 'closing_day' in cdf.columns: cdf['closing_day'] = cdf['closing_day'].apply(safe_float)
         if 'due_day' in cdf.columns: cdf['due_day'] = cdf['due_day'].apply(safe_float)
@@ -361,13 +361,10 @@ elif selected == "Metas":
     else:
         gdf = pd.DataFrame(current_goals)
 
-    # --- BLINDAGEM CONTRA ERROS DE TIPO ---
     if not gdf.empty:
-        # Garante que as colunas sejam numéricas antes de passar pro editor
         gdf['target'] = gdf['target'].apply(safe_float)
         gdf['current'] = gdf['current'].apply(safe_float)
         gdf['name'] = gdf['name'].astype(str)
-        # Previne cores nulas
         if 'color' not in gdf.columns: gdf['color'] = "#2D9CDB"
         gdf['color'] = gdf['color'].fillna("#2D9CDB")
 
@@ -394,16 +391,13 @@ elif selected == "Metas":
         st.success("Metas atualizadas com sucesso!")
         st.rerun()
 
-    # Visualização de Progresso
     if db_data.get('goals'):
         st.markdown("---")
         st.markdown("#### Progresso Visual")
         cols = st.columns(3)
         for i, g in enumerate(db_data['goals']):
-            # --- CORREÇÃO DO ERRO DO USUÁRIO AQUI ---
-            # Usa safe_float para garantir que 'target' e 'current' sejam números válidos
             target = safe_float(g.get('target', 1.0))
-            if target == 0: target = 1.0 # Evita divisão por zero
+            if target == 0: target = 1.0
             current = safe_float(g.get('current', 0.0))
             
             pct = (current / target * 100)
@@ -421,8 +415,15 @@ elif selected == "Metas":
 
 elif selected == "Nova Transação":
     st.markdown("### ➕ Nova Transação")
-    with st.container():
-        st.markdown('<div class="white-card">', unsafe_allow_html=True)
+    
+    st.markdown('<div class="white-card">', unsafe_allow_html=True)
+    
+    # --- 2. FUNCIONALIDADE DE APORTE EM METAS ---
+    # Dividir a tela em Abas para melhor UX
+    tab_tx, tab_meta = st.tabs(["Movimentação Comum", "Enviar para Meta 🎯"])
+    
+    # --- ABA 1: TRANSAÇÃO COMUM ---
+    with tab_tx:
         with st.form("nt"):
             tipo = st.selectbox("Tipo", ["Despesa", "Receita"])
             val = st.number_input("Valor", min_value=0.0, step=10.0)
@@ -430,12 +431,64 @@ elif selected == "Nova Transação":
             dt = c1.date_input("Data", datetime.now())
             contas = db_data.get('accounts', []) + [c['name'] for c in db_data.get('cards', [])]
             acc = c2.selectbox("Conta", contas)
-            cat = st.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Lazer", "Outros"])
+            
+            # 3. LISTA DE CATEGORIAS RESTAURADA
+            cats = ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Educação", "Salário", "Investimento", "Assinaturas", "Compras", "Outros"]
+            cat = st.selectbox("Categoria", cats)
+            
             stt = st.radio("Status", ["Pago", "Pendente"], horizontal=True)
             desc = st.text_input("Descrição")
-            if st.form_submit_button("Salvar"):
+            if st.form_submit_button("Salvar Movimentação"):
                 nt = {"id": int(datetime.now().timestamp()), "date": dt.strftime("%Y-%m-%d"), "type": tipo, "amount": val, "account": acc, "category": cat, "status": stt, "desc": desc}
                 db_data['transactions'].append(nt)
                 save_user_data(db_data)
                 st.success("Salvo!")
-        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- ABA 2: APORTE EM META ---
+    with tab_meta:
+        st.info("Isso criará uma despesa na conta de origem e aumentará o saldo da meta automaticamente.")
+        current_goals = db_data.get('goals', [])
+        
+        if not current_goals:
+            st.warning("Você ainda não criou nenhuma meta. Vá na aba 'Metas' primeiro.")
+        else:
+            with st.form("meta_tx"):
+                val_m = st.number_input("Valor do Aporte", min_value=0.0, step=10.0)
+                
+                c_m1, c_m2 = st.columns(2)
+                dt_m = c_m1.date_input("Data do Aporte", datetime.now())
+                
+                # Conta de Origem
+                acc_origin = c_m2.selectbox("Sairá de qual conta?", db_data.get('accounts', []) + [c['name'] for c in db_data.get('cards', [])])
+                
+                # Meta de Destino
+                goal_names = [g['name'] for g in current_goals]
+                target_goal_name = st.selectbox("Para qual meta?", goal_names)
+                
+                if st.form_submit_button("Realizar Aporte"):
+                    # 1. Cria a Despesa na Conta
+                    nt = {
+                        "id": int(datetime.now().timestamp()), 
+                        "date": dt_m.strftime("%Y-%m-%d"), 
+                        "type": "Despesa", 
+                        "amount": val_m, 
+                        "account": acc_origin, 
+                        "category": "Investimento", 
+                        "status": "Pago", 
+                        "desc": f"Aporte na Meta: {target_goal_name}"
+                    }
+                    db_data['transactions'].append(nt)
+                    
+                    # 2. Atualiza o Valor da Meta
+                    for g in db_data['goals']:
+                        if g['name'] == target_goal_name:
+                            current_val = safe_float(g.get('current', 0))
+                            g['current'] = current_val + val_m
+                            break
+                    
+                    save_user_data(db_data)
+                    st.success(f"Aporte de R$ {val_m} realizado em '{target_goal_name}'!")
+                    time.sleep(1)
+                    st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
