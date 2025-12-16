@@ -2,68 +2,84 @@ import streamlit as st
 import json
 import pandas as pd
 import os
-from datetime import datetime, timedelta
-import time
 import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
+import time
+from streamlit_option_menu import option_menu
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="FinSaaS AI", page_icon="💳", layout="centered")
+# --- CONFIGURAÇÃO DA PÁGINA (WIDE MODE PARA CRM) ---
+st.set_page_config(page_title="FinCRM", page_icon="📊", layout="wide")
 
-# --- CSS ESTILO IPHONE / IOS (ATUALIZADO) ---
-def inject_ios_css():
+# --- CSS ESTILO CRM / SAAS ---
+def inject_crm_css():
     st.markdown("""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=San+Francisco&display=swap');
-        
+        /* Fundo Geral mais corporativo */
         .stApp {
-            background-color: #F2F2F7;
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #F4F6F9;
         }
-        header, footer {visibility: hidden;}
-
-        /* Cards Gerais */
-        div[data-testid="stMetric"], .css-card {
+        
+        /* Sidebar */
+        section[data-testid="stSidebar"] {
+            background-color: #1E293B; /* Dark Slate Blue */
+        }
+        
+        /* Cards (Metrics) */
+        div[data-testid="stMetric"] {
             background-color: #FFFFFF;
-            border-radius: 20px;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
             padding: 15px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        div[data-testid="stMetricLabel"] {
+            font-size: 14px;
+            color: #64748B;
+            font-weight: 600;
+        }
+        div[data-testid="stMetricValue"] {
+            font-size: 24px;
+            color: #1E293B;
+            font-weight: 700;
         }
 
-        /* Botões */
-        .stButton > button {
-            width: 100%;
-            border-radius: 14px;
-            height: 50px;
-            background-color: #007AFF;
-            color: white;
-            border: none;
-            font-weight: 600;
-            font-size: 16px;
-            box-shadow: 0 4px 6px rgba(0,122,255,0.2);
+        /* Tabelas e Dataframes */
+        .stDataFrame {
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+            background-color: white;
         }
-        .stButton > button:hover {
-            background-color: #0056b3;
-            transform: scale(0.99);
+        
+        /* Inputs Estilo Form */
+        .stTextInput, .stNumberInput, .stSelectbox {
+            background-color: white;
         }
 
         /* Títulos */
-        h1, h2, h3 { color: #1C1C1E; font-weight: 700; letter-spacing: -0.5px; }
+        h1, h2, h3 {
+            color: #0F172A;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
         
-        /* Ajuste do Plotly para parecer nativo */
-        .js-plotly-plot .plotly .modebar { display: none; }
-
-        .block-container {
-            padding-top: 2rem;
-            padding-bottom: 5rem;
-            max-width: 500px;
+        /* Botões Primários */
+        .stButton > button {
+            background-color: #3B82F6; /* Blue 500 */
+            color: white;
+            border-radius: 6px;
+            border: none;
+            font-weight: 500;
+        }
+        .stButton > button:hover {
+            background-color: #2563EB;
         }
         </style>
     """, unsafe_allow_html=True)
 
-inject_ios_css()
+inject_crm_css()
 
-# --- BANCO DE DADOS (JSON) ---
-DB_FILE = 'finance_db.json'
+# --- DADOS E FUNÇÕES ---
+DB_FILE = 'finance_crm.json'
 
 def load_data():
     if not os.path.exists(DB_FILE):
@@ -77,186 +93,206 @@ def save_data(data):
 
 db = load_data()
 
-# --- ESTADO DA SESSÃO ---
-if 'logged_in' not in st.session_state:
-    st.session_state['logged_in'] = False
-if 'user_email' not in st.session_state:
-    st.session_state['user_email'] = None
+if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
+if 'user_email' not in st.session_state: st.session_state['user_email'] = None
 
-# --- FUNÇÕES LÓGICAS ---
-def login_google_mock():
-    st.session_state['logged_in'] = True
-    st.session_state['user_email'] = "usuario@demo.com"
-    st.rerun()
-
-def add_transaction(tipo, valor, categoria, descricao):
-    new_trans = {
-        "id": int(time.time()),
-        "user": st.session_state['user_email'],
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "type": tipo,
-        "amount": float(valor),
-        "category": categoria,
-        "desc": descricao
-    }
-    db['transactions'].append(new_trans)
-    save_data(db)
-    st.toast("Salvo!", icon="💾")
-    time.sleep(0.5)
-    st.rerun()
-
-# --- LÓGICA DE INSIGHTS ---
-def get_smart_insights(df):
+# --- LÓGICA DE INSIGHTS AVANÇADOS (CRM INTELLIGENCE) ---
+def calculate_kpis(df):
     if df.empty:
-        return None
+        return 0, 0, 0, 0, 0, "Sem dados"
+
+    receitas = df[df['type'] == 'Receita']['amount'].sum()
+    despesas = df[df['type'] == 'Despesa']['amount'].sum()
+    saldo = receitas - despesas
     
-    # Converter data
+    # 1. Burn Rate (Gasto Médio Diário)
+    # Pega o range de datas
     df['date_dt'] = pd.to_datetime(df['date'])
-    df_despesas = df[df['type'] == 'Despesa']
-    
-    insights = []
-    
-    # 1. Insight de Maior Categoria (Vilão do Gasto)
-    if not df_despesas.empty:
-        cat_sum = df_despesas.groupby('category')['amount'].sum().sort_values(ascending=False)
-        top_cat = cat_sum.index[0]
-        top_val = cat_sum.values[0]
-        total_desp = df_despesas['amount'].sum()
-        pct = (top_val / total_desp) * 100
-        
-        msg = f"<b>{top_cat}</b> consome {pct:.0f}% das suas saídas."
-        cor = "#FF3B30" if pct > 40 else "#FF9500" # Vermelho se > 40%, Laranja se menos
-        insights.append({"titulo": "Foco de Atenção", "msg": msg, "cor": cor, "icon": "⚠️"})
+    dias_ativos = (df['date_dt'].max() - df['date_dt'].min()).days + 1
+    if dias_ativos < 1: dias_ativos = 1
+    burn_rate = despesas / dias_ativos
 
-    # 2. Comparativo Mês Atual vs Anterior (Simulado para MVP)
-    # Num cenário real, filtrariamos por mês. Aqui vamos simular com base na média.
-    media_gasto = df_despesas['amount'].mean()
-    ultimo_gasto = df_despesas.iloc[-1]['amount'] if not df_despesas.empty else 0
+    # 2. Runway (Dias de Sobrevivência)
+    runway = 0
+    if burn_rate > 0:
+        runway = int(saldo / burn_rate)
     
-    if ultimo_gasto > media_gasto * 1.5:
-        insights.append({
-            "titulo": "Gasto Atípico", 
-            "msg": f"O último gasto foi 50% acima da sua média.", 
-            "cor": "#5856D6", # Roxo Apple
-            "icon": "📊"
-        })
-    elif ultimo_gasto == 0:
-        pass
-    else:
-        insights.append({
-            "titulo": "No Controle", 
-            "msg": "Seus gastos recentes estão dentro da média.", 
-            "cor": "#34C759", # Verde Apple
-            "icon": "✅"
-        })
+    # 3. Savings Rate
+    savings_rate = 0
+    if receitas > 0:
+        savings_rate = ((receitas - despesas) / receitas) * 100
 
-    return insights
+    # 4. Projeção Mensal (Simples)
+    projecao = burn_rate * 30
 
-# --- UI LOGIN ---
+    return saldo, receitas, despesas, burn_rate, runway, savings_rate, projecao
+
+# --- LOGIN SCREEN ---
 if not st.session_state['logged_in']:
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown("<h1 style='text-align: center;'>FinSaaS</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #8E8E93;'>Inteligência para o seu dinheiro.</p>", unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1,10,1])
+    col1, col2, col3 = st.columns([1,1,1])
     with col2:
-        if st.button(" Entrar com Google"):
-            login_google_mock()
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        st.markdown("<div style='background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); text-align: center;'>", unsafe_allow_html=True)
+        st.markdown("## 🚀 FinCRM")
+        st.markdown("Gestão financeira para alta performance.")
+        st.write("")
+        if st.button("Login com Google Account"):
+            st.session_state['logged_in'] = True
+            st.session_state['user_email'] = "admin@empresa.com"
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-# --- UI APP PRINCIPAL ---
+# --- DASHBOARD PRINCIPAL ---
 else:
-    # 1. Header
-    c1, c2 = st.columns([8, 2])
-    with c1: st.markdown(f"### Olá, Usuário")
-    with c2: 
-        if st.button("Sair", key="logout"):
+    # SIDEBAR NAVEGAÇÃO
+    with st.sidebar:
+        st.markdown("### FinCRM v1.0")
+        selected = option_menu(
+            menu_title=None,
+            options=["Dashboard", "Lançamentos", "Relatórios"],
+            icons=["speedometer2", "pencil-square", "graph-up-arrow"],
+            menu_icon="cast",
+            default_index=0,
+            styles={
+                "container": {"padding": "0!important", "background-color": "#1E293B"},
+                "icon": {"color": "#94A3B8", "font-size": "18px"}, 
+                "nav-link": {"font-size": "14px", "text-align": "left", "margin":"5px", "--hover-color": "#334155", "color": "white"},
+                "nav-link-selected": {"background-color": "#3B82F6"},
+            }
+        )
+        st.markdown("---")
+        if st.button("Logout"):
             st.session_state['logged_in'] = False
             st.rerun()
 
-    # 2. Processamento de Dados
+    # PROCESSAMENTO DE DADOS
     user_txs = [t for t in db['transactions'] if t['user'] == st.session_state['user_email']]
     df = pd.DataFrame(user_txs)
     
-    saldo, receitas, despesas = 0, 0, 0
-    if not df.empty:
-        receitas = df[df['type'] == 'Receita']['amount'].sum()
-        despesas = df[df['type'] == 'Despesa']['amount'].sum()
-        saldo = receitas - despesas
+    # --- PÁGINA 1: DASHBOARD ---
+    if selected == "Dashboard":
+        st.markdown("## Visão Geral")
+        
+        # KPIS
+        saldo, rec, desp, burn, runway, savings, projecao = calculate_kpis(df)
+        
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Saldo Líquido", f"R$ {saldo:,.2f}", delta=f"{savings:.1f}% Margem")
+        c2.metric("Receita Total", f"R$ {rec:,.2f}")
+        c3.metric("Burn Rate (Diário)", f"R$ {burn:,.2f}", delta_color="inverse", help="Quanto você gasta por dia em média")
+        c4.metric("Runway (Dias)", f"{runway} dias", help="Quanto tempo o dinheiro dura se a receita parar")
 
-    # 3. Card de Saldo
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #007AFF 0%, #5856D6 100%); padding: 25px; border-radius: 24px; color: white; margin-bottom: 20px; box-shadow: 0 10px 20px rgba(0,122,255,0.3);">
-        <p style="margin:0; font-size: 14px; opacity: 0.9;">Saldo Disponível</p>
-        <h1 style="margin:5px 0; font-size: 42px; color: white; letter-spacing: -1px;">R$ {saldo:,.2f}</h1>
-        <div style="display: flex; margin-top: 15px; opacity: 0.9; font-size: 13px;">
-            <div style="margin-right: 20px;">↓ Saídas: R$ {despesas:,.2f}</div>
-            <div>↑ Entradas: R$ {receitas:,.2f}</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+        # ÁREA DE GRÁFICOS
+        st.markdown("---")
+        g1, g2 = st.columns([2, 1])
+        
+        with g1:
+            st.markdown("##### 📈 Fluxo de Caixa Temporal")
+            if not df.empty:
+                # Gráfico de Área CRM Style
+                df_sorted = df.sort_values('date')
+                df_sorted['cumulative'] = 0 # Placeholder logic for nice chart
+                
+                fig = px.bar(df_sorted, x='date', y='amount', color='type', barmode='group',
+                             color_discrete_map={'Receita': '#10B981', 'Despesa': '#EF4444'})
+                fig.update_layout(paper_bgcolor="white", plot_bgcolor="white", height=350, margin=dict(l=20, r=20, t=20, b=20))
+                fig.update_yaxes(showgrid=True, gridcolor='#F1F5F9')
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("Sem dados para exibir o gráfico.")
 
-    # 4. ÁREA DE SMART INSIGHTS (NOVO)
-    if not df.empty and despesas > 0:
-        st.markdown("##### 🧠 Insights")
-        
-        # Gera insights lógicos
-        insights_list = get_smart_insights(df)
-        
-        # Mostra Cards de Texto
-        cols = st.columns(len(insights_list))
-        for idx, item in enumerate(insights_list):
-            with cols[idx]:
-                st.markdown(f"""
-                <div style="background-color: white; padding: 15px; border-radius: 18px; height: 120px; border-left: 5px solid {item['cor']}; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-                    <div style="font-size: 24px; margin-bottom: 5px;">{item['icon']}</div>
-                    <div style="font-weight: 700; font-size: 13px; color: #8E8E93; text-transform: uppercase;">{item['titulo']}</div>
-                    <div style="font-size: 14px; color: #1C1C1E; line-height: 1.4;">{item['msg']}</div>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        # Gráfico Donut (Estilo Apple)
-        st.markdown("<br>", unsafe_allow_html=True)
-        df_desp = df[df['type'] == 'Despesa']
-        fig = px.pie(df_desp, values='amount', names='category', hole=0.6, 
-                     color_discrete_sequence=px.colors.qualitative.Pastel)
-        fig.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0), height=200, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-        fig.update_traces(textinfo='percent+label', textposition='inside')
-        
-        st.markdown("<div style='background: white; padding: 20px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);'>", unsafe_allow_html=True)
-        st.markdown("<h5 style='text-align: center; margin-bottom: 0;'>Distribuição de Gastos</h5>", unsafe_allow_html=True)
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # 5. Nova Transação (Formulário Otimizado)
-    st.markdown("<br>##### Adicionar Movimento", unsafe_allow_html=True)
-    with st.container():
-        c_tipo, c_cat = st.columns(2)
-        with c_tipo:
-            tipo = st.selectbox("Tipo", ["Despesa", "Receita"])
-        with c_cat:
-            categoria = st.selectbox("Categoria", ["Alimentação", "Transporte", "Casa", "Lazer", "Investimento", "Salário", "Outros"])
-        
-        valor = st.number_input("Valor (R$)", min_value=0.0, step=10.0)
-        desc = st.text_input("Descrição", placeholder="Ex: Uber para o trabalho")
-        
-        if st.button("Confirmar Transação"):
-            if valor > 0:
-                add_transaction(tipo, valor, categoria, desc)
-
-    # 6. Lista Simples
-    st.markdown("<br>##### Histórico", unsafe_allow_html=True)
-    if not df.empty:
-        for i, row in df.sort_values(by='id', ascending=False).head(5).iterrows():
-            color = "#FF3B30" if row['type'] == 'Despesa' else "#34C759"
-            sinal = "-" if row['type'] == 'Despesa' else "+"
-            st.markdown(f"""
-            <div style="background: white; margin-bottom: 10px; padding: 15px; border-radius: 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #F2F2F7;">
-                <div>
-                    <div style="font-weight: 600; color: #1C1C1E;">{row['category']}</div>
-                    <div style="font-size: 12px; color: #8E8E93;">{row['desc']} • {row['date'][5:]}</div>
-                </div>
-                <div style="font-weight: 700; color: {color}; font-size: 15px;">
-                    {sinal} R$ {row['amount']:.2f}
-                </div>
-            </div>
+        with g2:
+            st.markdown("##### 🧠 AI Insights")
+            st.markdown("""
+            <div style="background-color: white; padding: 15px; border-radius: 8px; border: 1px solid #E2E8F0; height: 350px;">
             """, unsafe_allow_html=True)
+            
+            if not df.empty:
+                # Insight 1: Projeção
+                st.markdown(f"**Projeção de Gasto Mensal:**<br><span style='font-size: 20px; color: #EF4444'>R$ {projecao:,.2f}</span>", unsafe_allow_html=True)
+                st.progress(min(burn/1000 if burn > 0 else 0, 1.0))
+                st.caption("Baseado na média diária atual.")
+                
+                st.markdown("---")
+                
+                # Insight 2: Alerta de Categoria
+                if desp > 0:
+                    top_cat = df[df['type']=='Despesa'].groupby('category')['amount'].sum().idxmax()
+                    val_cat = df[df['type']=='Despesa'].groupby('category')['amount'].sum().max()
+                    st.markdown(f"**Maior Ofensor:**<br>{top_cat} (R$ {val_cat:.2f})", unsafe_allow_html=True)
+                    st.caption("Considere reduzir custos nesta área.")
+                
+            else:
+                st.write("Insira dados para gerar insights.")
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    # --- PÁGINA 2: LANÇAMENTOS ---
+    elif selected == "Lançamentos":
+        st.markdown("## Gestão de Lançamentos")
+        
+        with st.form("entry_form", clear_on_submit=True):
+            col_a, col_b, col_c, col_d = st.columns(4)
+            with col_a:
+                tipo = st.selectbox("Tipo", ["Receita", "Despesa"])
+            with col_b:
+                valor = st.number_input("Valor", min_value=0.0, step=100.0)
+            with col_c:
+                cat = st.selectbox("Categoria", ["Vendas", "Serviços", "Marketing", "Infraestrutura", "Pessoal", "Impostos"])
+            with col_d:
+                desc = st.text_input("Descrição", placeholder="Ex: Pagamento AWS")
+            
+            submitted = st.form_submit_button("💾 Salvar Registro")
+            
+            if submitted and valor > 0:
+                new_trans = {
+                    "id": int(time.time()),
+                    "user": st.session_state['user_email'],
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "type": tipo,
+                    "amount": float(valor),
+                    "category": cat,
+                    "desc": desc
+                }
+                db['transactions'].append(new_trans)
+                save_data(db)
+                st.success("Registro adicionado com sucesso.")
+                time.sleep(1)
+                st.rerun()
+
+        st.markdown("### Últimos Registros")
+        if not df.empty:
+            # Table estilo CRM (Clean)
+            st.dataframe(
+                df[['date', 'category', 'desc', 'type', 'amount']].sort_values(by='date', ascending=False),
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "date": "Data",
+                    "category": "Categoria",
+                    "desc": "Descrição",
+                    "type": "Tipo",
+                    "amount": st.column_config.NumberColumn("Valor", format="R$ %.2f")
+                }
+            )
+
+    # --- PÁGINA 3: RELATÓRIOS ---
+    elif selected == "Relatórios":
+        st.markdown("## Análise Detalhada")
+        if not df.empty:
+            col_r1, col_r2 = st.columns(2)
+            
+            with col_r1:
+                st.markdown("#### Despesas por Categoria")
+                df_desp = df[df['type'] == 'Despesa']
+                fig_pie = px.pie(df_desp, values='amount', names='category', hole=0.4)
+                st.plotly_chart(fig_pie, use_container_width=True)
+                
+            with col_r2:
+                st.markdown("#### Composição da Receita")
+                df_rec = df[df['type'] == 'Receita']
+                if not df_rec.empty:
+                    fig_bar = px.bar(df_rec, x='category', y='amount')
+                    st.plotly_chart(fig_bar, use_container_width=True)
+                else:
+                    st.info("Sem receitas registradas.")
