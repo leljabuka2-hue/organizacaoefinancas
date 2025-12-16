@@ -63,15 +63,24 @@ def inject_custom_css():
 
 inject_custom_css()
 
+# --- FUNÇÕES UTILITÁRIAS DE SEGURANÇA ---
+def safe_float(val):
+    """Converte qualquer coisa para float de forma segura, evitando erros de App."""
+    if val is None:
+        return 0.0
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return 0.0
+
 # --- GESTÃO DE DADOS (JSON MULTI-USER) ---
 DB_FILE = 'finsaas_secure_db.json'
 
 def init_db():
     if not os.path.exists(DB_FILE):
-        # Estrutura: 'users' guarda credenciais, 'data' guarda os dados financeiros por usuario
         db_structure = {
-            "users": {}, # { "email": { "name": "Nome", "password": "123" } }
-            "data": {}   # { "email": { "transactions": [], ... } }
+            "users": {}, 
+            "data": {} 
         }
         with open(DB_FILE, 'w') as f: json.dump(db_structure, f)
 
@@ -101,12 +110,10 @@ def login_user(email, password):
 def register_user(name, email, password):
     db = load_full_db()
     if email in db['users']:
-        return False # Usuário já existe
+        return False 
     
-    # Cria Usuário
     db['users'][email] = {"name": name, "password": password}
     
-    # Cria Template de Dados Vazio para o Usuário
     db['data'][email] = {
         "transactions": [],
         "cards": [],
@@ -119,7 +126,6 @@ def register_user(name, email, password):
 def get_user_data():
     email = st.session_state['user_email']
     db = load_full_db()
-    # Retorna os dados do usuário logado ou template vazio se der erro
     return db['data'].get(email, {"transactions": [], "cards": [], "accounts": [], "goals": []})
 
 def save_user_data(user_data):
@@ -164,23 +170,21 @@ if not st.session_state['user_email']:
                 else:
                     st.warning("Preencha todos os campos.")
     
-    st.stop() # Para a execução aqui se não estiver logado
+    st.stop() 
 
 # ==================================================================================================
 # APLICAÇÃO PRINCIPAL (SÓ CARREGA SE LOGADO)
 # ==================================================================================================
 
-# Carrega dados APENAS do usuário logado
 db_data = get_user_data()
 user_name = st.session_state['user_name']
 
-# --- FUNÇÃO DE PROCESSAMENTO (ENGINE) ---
+# --- FUNÇÃO DE PROCESSAMENTO ---
 def process_data(user_db, selected_date):
     txs = user_db.get('transactions', [])
     cards_list = user_db.get('cards', [])
     cards = {c['name']: c for c in cards_list}
     
-    # Definir colunas padrão para evitar erros
     cols = ['id', 'date', 'type', 'amount', 'account', 'category', 'status', 'desc', 'competencia', 'comp_mes', 'comp_ano']
     
     if not txs:
@@ -188,19 +192,17 @@ def process_data(user_db, selected_date):
         return empty, empty, 0.0
 
     df = pd.DataFrame(txs)
-    
-    # Verificação de segurança
     if 'date' not in df.columns or 'amount' not in df.columns:
         empty = pd.DataFrame(columns=cols)
         return empty, empty, 0.0
 
     df['date'] = pd.to_datetime(df['date'])
-    df['amount'] = df['amount'].astype(float)
+    df['amount'] = df['amount'].apply(safe_float) # Usa safe_float para garantir
     
     def get_competence(row):
         if row.get('account') in cards and row.get('type') == 'Despesa':
             try:
-                closing = int(cards[row['account']]['closing_day'])
+                closing = safe_float(cards[row['account']]['closing_day'])
                 if row['date'].day >= closing:
                     return row['date'] + relativedelta(months=1)
             except: pass
@@ -224,7 +226,6 @@ def process_data(user_db, selected_date):
 with st.sidebar:
     st.markdown(f"### Olá, {user_name} 👋")
     
-    # Filtro Data
     c1, c2 = st.columns(2)
     meses = {1:"Jan",2:"Fev",3:"Mar",4:"Abr",5:"Mai",6:"Jun",7:"Jul",8:"Ago",9:"Set",10:"Out",11:"Nov",12:"Dez"}
     sel_mes = c1.selectbox("Mês", list(meses.keys()), index=datetime.now().month-1, format_func=lambda x: meses[x])
@@ -323,10 +324,10 @@ elif selected == "Cadastros":
         cdf = pd.DataFrame(db_data.get('cards', []))
         if cdf.empty: cdf = pd.DataFrame(columns=["name", "limit", "closing_day", "due_day"])
         
-        # Garante tipos numéricos para evitar crash no st.data_editor
-        if 'limit' in cdf.columns: cdf['limit'] = pd.to_numeric(cdf['limit'], errors='coerce').fillna(0.0)
-        if 'closing_day' in cdf.columns: cdf['closing_day'] = pd.to_numeric(cdf['closing_day'], errors='coerce').fillna(1)
-        if 'due_day' in cdf.columns: cdf['due_day'] = pd.to_numeric(cdf['due_day'], errors='coerce').fillna(1)
+        # Garante tipos numéricos usando safe_float
+        if 'limit' in cdf.columns: cdf['limit'] = cdf['limit'].apply(safe_float)
+        if 'closing_day' in cdf.columns: cdf['closing_day'] = cdf['closing_day'].apply(safe_float)
+        if 'due_day' in cdf.columns: cdf['due_day'] = cdf['due_day'].apply(safe_float)
 
         cdf['Excluir'] = False
         ed_cards = st.data_editor(cdf, num_rows="dynamic", use_container_width=True, hide_index=True, column_config={"Excluir": st.column_config.CheckboxColumn(default=False)})
@@ -360,19 +361,18 @@ elif selected == "Metas":
     else:
         gdf = pd.DataFrame(current_goals)
 
-    # --- CORREÇÃO DO ERRO ---
-    # Converte tipos explicitamente para evitar StreamlitAPIException
+    # --- BLINDAGEM CONTRA ERROS DE TIPO ---
     if not gdf.empty:
-        gdf['target'] = pd.to_numeric(gdf['target'], errors='coerce').fillna(0.0)
-        gdf['current'] = pd.to_numeric(gdf['current'], errors='coerce').fillna(0.0)
+        # Garante que as colunas sejam numéricas antes de passar pro editor
+        gdf['target'] = gdf['target'].apply(safe_float)
+        gdf['current'] = gdf['current'].apply(safe_float)
         gdf['name'] = gdf['name'].astype(str)
-        gdf['color'] = gdf['color'].astype(str)
-    # ------------------------
+        # Previne cores nulas
+        if 'color' not in gdf.columns: gdf['color'] = "#2D9CDB"
+        gdf['color'] = gdf['color'].fillna("#2D9CDB")
 
-    # Adiciona coluna de exclusão
     gdf['Excluir'] = False
 
-    # Editor de Dados para Metas
     edited_goals = st.data_editor(
         gdf,
         column_config={
@@ -388,23 +388,23 @@ elif selected == "Metas":
     )
 
     if st.button("💾 Salvar Metas"):
-        # Filtra excluídos e salva
         valid_goals = edited_goals[edited_goals['Excluir'] == False].drop(columns=['Excluir'])
         db_data['goals'] = valid_goals.to_dict(orient='records')
         save_user_data(db_data)
         st.success("Metas atualizadas com sucesso!")
         st.rerun()
 
-    # Visualização de Progresso (Read-Only)
+    # Visualização de Progresso
     if db_data.get('goals'):
         st.markdown("---")
         st.markdown("#### Progresso Visual")
         cols = st.columns(3)
         for i, g in enumerate(db_data['goals']):
-            # Garante que target seja numero para evitar erro de divisao
-            target = float(g.get('target', 1))
-            current = float(g.get('current', 0))
-            if target == 0: target = 1
+            # --- CORREÇÃO DO ERRO DO USUÁRIO AQUI ---
+            # Usa safe_float para garantir que 'target' e 'current' sejam números válidos
+            target = safe_float(g.get('target', 1.0))
+            if target == 0: target = 1.0 # Evita divisão por zero
+            current = safe_float(g.get('current', 0.0))
             
             pct = (current / target * 100)
             color = g.get('color', '#2D9CDB')
