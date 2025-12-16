@@ -180,6 +180,7 @@ def process_data(user_db, selected_date):
     cards_list = user_db.get('cards', [])
     cards = {c['name']: c for c in cards_list}
     
+    # Definir colunas padrão para evitar erros
     cols = ['id', 'date', 'type', 'amount', 'account', 'category', 'status', 'desc', 'competencia', 'comp_mes', 'comp_ano']
     
     if not txs:
@@ -187,6 +188,8 @@ def process_data(user_db, selected_date):
         return empty, empty, 0.0
 
     df = pd.DataFrame(txs)
+    
+    # Verificação de segurança
     if 'date' not in df.columns or 'amount' not in df.columns:
         empty = pd.DataFrame(columns=cols)
         return empty, empty, 0.0
@@ -319,6 +322,12 @@ elif selected == "Cadastros":
     with tab1:
         cdf = pd.DataFrame(db_data.get('cards', []))
         if cdf.empty: cdf = pd.DataFrame(columns=["name", "limit", "closing_day", "due_day"])
+        
+        # Garante tipos numéricos para evitar crash no st.data_editor
+        if 'limit' in cdf.columns: cdf['limit'] = pd.to_numeric(cdf['limit'], errors='coerce').fillna(0.0)
+        if 'closing_day' in cdf.columns: cdf['closing_day'] = pd.to_numeric(cdf['closing_day'], errors='coerce').fillna(1)
+        if 'due_day' in cdf.columns: cdf['due_day'] = pd.to_numeric(cdf['due_day'], errors='coerce').fillna(1)
+
         cdf['Excluir'] = False
         ed_cards = st.data_editor(cdf, num_rows="dynamic", use_container_width=True, hide_index=True, column_config={"Excluir": st.column_config.CheckboxColumn(default=False)})
         if st.button("Salvar Cartões"):
@@ -342,16 +351,23 @@ elif selected == "Cadastros":
 elif selected == "Metas":
     st.markdown("### 🎯 Metas")
     
-    # --- NOVIDADE: EDIÇÃO DE METAS ---
     st.info("Você pode editar os valores das metas diretamente na tabela abaixo.")
 
     current_goals = db_data.get('goals', [])
     
     if not current_goals:
-        # Se vazio, cria estrutura para o usuário começar
         gdf = pd.DataFrame(columns=["name", "target", "current", "color"])
     else:
         gdf = pd.DataFrame(current_goals)
+
+    # --- CORREÇÃO DO ERRO ---
+    # Converte tipos explicitamente para evitar StreamlitAPIException
+    if not gdf.empty:
+        gdf['target'] = pd.to_numeric(gdf['target'], errors='coerce').fillna(0.0)
+        gdf['current'] = pd.to_numeric(gdf['current'], errors='coerce').fillna(0.0)
+        gdf['name'] = gdf['name'].astype(str)
+        gdf['color'] = gdf['color'].astype(str)
+    # ------------------------
 
     # Adiciona coluna de exclusão
     gdf['Excluir'] = False
@@ -385,15 +401,19 @@ elif selected == "Metas":
         st.markdown("#### Progresso Visual")
         cols = st.columns(3)
         for i, g in enumerate(db_data['goals']):
-            if not g.get('target'): g['target'] = 1 # Evita div por zero
-            pct = (g.get('current',0) / g['target'] * 100)
+            # Garante que target seja numero para evitar erro de divisao
+            target = float(g.get('target', 1))
+            current = float(g.get('current', 0))
+            if target == 0: target = 1
+            
+            pct = (current / target * 100)
             color = g.get('color', '#2D9CDB')
             
             with cols[i%3]:
                 st.markdown(f"""
                 <div class="white-card" style="padding: 15px;">
                     <b>{g.get('name', 'Meta')}</b>
-                    <h3 style="color:{color}">R$ {g.get('current',0):,.0f} <small style="color:#ccc; font-size:12px">/ {g['target']:,.0f}</small></h3>
+                    <h3 style="color:{color}">R$ {current:,.0f} <small style="color:#ccc; font-size:12px">/ {target:,.0f}</small></h3>
                     <div style="background:#eee;height:8px;border-radius:4px"><div style="width:{min(pct,100)}%;background:{color};height:100%;border-radius:4px"></div></div>
                     <div style="text-align:right;font-size:11px;color:#999;margin-top:5px">{pct:.1f}%</div>
                 </div>
