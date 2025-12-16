@@ -11,19 +11,12 @@ import time
 # --- 1. CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="FinanSaas", page_icon="💎", layout="wide")
 
-# --- 2. DEFINIÇÃO DE CORES DAS CATEGORIAS (CONSISTÊNCIA VISUAL) ---
+# --- 2. DEFINIÇÃO DE CORES DAS CATEGORIAS ---
 CATEGORY_COLORS = {
-    "Alimentação": "#FF9F43",   # Laranja
-    "Moradia": "#54A0FF",       # Azul
-    "Transporte": "#F368E0",    # Rosa
-    "Lazer": "#00D2D3",         # Turquesa
-    "Saúde": "#FF6B6B",         # Vermelho
-    "Educação": "#5F27CD",      # Roxo
-    "Salário": "#1DD1A1",       # Verde Claro
-    "Investimento": "#222F3E",  # Azul Escuro
-    "Assinaturas": "#8395A7",   # Cinza Azulado
-    "Compras": "#FF9FF3",       # Rosa Claro
-    "Outros": "#C8D6E5"         # Cinza Claro
+    "Alimentação": "#FF9F43", "Moradia": "#54A0FF", "Transporte": "#F368E0",
+    "Lazer": "#00D2D3", "Saúde": "#FF6B6B", "Educação": "#5F27CD",
+    "Salário": "#1DD1A1", "Investimento": "#222F3E", "Assinaturas": "#8395A7",
+    "Compras": "#FF9FF3", "Outros": "#C8D6E5"
 }
 
 # --- CSS PERSONALIZADO ---
@@ -32,24 +25,17 @@ def inject_custom_css():
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
         .stApp { background-color: #F4F7FC; font-family: 'Nunito', sans-serif; }
-        
         .block-container { padding-top: 1.5rem; padding-bottom: 3rem; }
-        
-        /* Cards e Containers */
         .white-card {
             background-color: #FFFFFF; border-radius: 16px; padding: 24px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.03); margin-bottom: 20px;
             border: 1px solid #F0F2F5;
         }
-        
-        /* Login Box */
         .login-card {
             max-width: 400px; margin: 0 auto; background: white; 
             padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08);
             text-align: center;
         }
-        
-        /* Elementos UI */
         .color-card {
             border-radius: 16px; padding: 20px; color: white;
             box-shadow: 0 8px 15px rgba(0,0,0,0.05); display: flex;
@@ -59,18 +45,13 @@ def inject_custom_css():
             background-color: rgba(255,255,255,0.25); width: 48px; height: 48px;
             border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px;
         }
-        
         .bg-blue { background: linear-gradient(135deg, #2D9CDB 0%, #2F80ED 100%); }
         .bg-green { background: linear-gradient(135deg, #27AE60 0%, #219653 100%); }
         .bg-red { background: linear-gradient(135deg, #EB5757 0%, #C0392B 100%); }
-        
-        /* Botões */
         div.stButton > button:first-child {
             background-color: #2D9CDB; color: white; border: none; border-radius: 8px; font-weight: 600; width: 100%;
         }
         div.stButton > button:hover { background-color: #1B85C4; }
-        
-        /* Dataframes e Plotly */
         div[data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; border: 1px solid #eee; }
         .js-plotly-plot .plotly .modebar { display: none !important; }
         </style>
@@ -89,10 +70,7 @@ DB_FILE = 'finsaas_secure_db.json'
 
 def init_db():
     if not os.path.exists(DB_FILE):
-        db_structure = {
-            "users": {}, 
-            "data": {} 
-        }
+        db_structure = { "users": {}, "data": {} }
         with open(DB_FILE, 'w') as f: json.dump(db_structure, f)
 
 def load_full_db():
@@ -105,7 +83,7 @@ def load_full_db():
 def save_full_db(data):
     with open(DB_FILE, 'w') as f: json.dump(data, f, indent=4)
 
-# --- SISTEMA DE AUTENTICAÇÃO ---
+# --- AUTENTICAÇÃO ---
 if 'user_email' not in st.session_state: st.session_state['user_email'] = None
 if 'user_name' not in st.session_state: st.session_state['user_name'] = None
 
@@ -124,10 +102,7 @@ def register_user(name, email, password):
     
     db['users'][email] = {"name": name, "password": password}
     db['data'][email] = {
-        "transactions": [],
-        "cards": [],
-        "accounts": ["Carteira"],
-        "goals": []
+        "transactions": [], "cards": [], "accounts": ["Carteira"], "goals": []
     }
     save_full_db(db)
     return True
@@ -143,7 +118,7 @@ def save_user_data(user_data):
     db['data'][email] = user_data
     save_full_db(db)
 
-# --- TELAS DE LOGIN / CADASTRO ---
+# --- TELA DE LOGIN ---
 if not st.session_state['user_email']:
     col1, col2, col3 = st.columns([1,1,1])
     with col2:
@@ -156,54 +131,38 @@ if not st.session_state['user_email']:
         """, unsafe_allow_html=True)
         
         tab_login, tab_register = st.tabs(["Entrar", "Criar Conta"])
-        
         with tab_login:
             email_l = st.text_input("E-mail", key="l_email")
             pass_l = st.text_input("Senha", type="password", key="l_pass")
             if st.button("Acessar Sistema"):
-                if login_user(email_l, pass_l):
-                    st.rerun()
-                else:
-                    st.error("E-mail ou senha incorretos.")
-
+                if login_user(email_l, pass_l): st.rerun()
+                else: st.error("E-mail ou senha incorretos.")
         with tab_register:
             name_r = st.text_input("Seu Nome")
             email_r = st.text_input("E-mail", key="r_email")
             pass_r = st.text_input("Senha", type="password", key="r_pass")
             if st.button("Cadastrar"):
                 if name_r and email_r and pass_r:
-                    if register_user(name_r, email_r, pass_r):
-                        st.success("Conta criada! Faça login.")
-                    else:
-                        st.error("E-mail já cadastrado.")
-                else:
-                    st.warning("Preencha todos os campos.")
-    
+                    if register_user(name_r, email_r, pass_r): st.success("Conta criada! Faça login.")
+                    else: st.error("E-mail já cadastrado.")
+                else: st.warning("Preencha todos os campos.")
     st.stop() 
 
-# ==================================================================================================
-# APLICAÇÃO PRINCIPAL
-# ==================================================================================================
-
+# --- APLICAÇÃO ---
 db_data = get_user_data()
 user_name = st.session_state['user_name']
 
-# --- FUNÇÃO DE PROCESSAMENTO ---
 def process_data(user_db, selected_date):
     txs = user_db.get('transactions', [])
     cards_list = user_db.get('cards', [])
     cards = {c['name']: c for c in cards_list}
-    
     cols = ['id', 'date', 'type', 'amount', 'account', 'category', 'status', 'desc', 'competencia', 'comp_mes', 'comp_ano']
     
-    if not txs:
-        empty = pd.DataFrame(columns=cols)
-        return empty, empty, 0.0
+    if not txs: return pd.DataFrame(columns=cols), pd.DataFrame(columns=cols), 0.0
 
     df = pd.DataFrame(txs)
     if 'date' not in df.columns or 'amount' not in df.columns:
-        empty = pd.DataFrame(columns=cols)
-        return empty, empty, 0.0
+        return pd.DataFrame(columns=cols), pd.DataFrame(columns=cols), 0.0
 
     df['date'] = pd.to_datetime(df['date'])
     df['amount'] = df['amount'].apply(safe_float)
@@ -222,7 +181,6 @@ def process_data(user_db, selected_date):
     df['comp_ano'] = df['competencia'].dt.year
 
     df_view = df[(df['comp_mes'] == selected_date.month) & (df['comp_ano'] == selected_date.year)]
-    
     mask_ant = df['competencia'] < datetime(selected_date.year, selected_date.month, 1)
     df_ant = df[mask_ant]
     
@@ -234,15 +192,13 @@ def process_data(user_db, selected_date):
 # --- SIDEBAR ---
 with st.sidebar:
     st.markdown(f"### Olá, {user_name} 👋")
-    
     c1, c2 = st.columns(2)
     meses = {1:"Jan",2:"Fev",3:"Mar",4:"Abr",5:"Mai",6:"Jun",7:"Jul",8:"Ago",9:"Set",10:"Out",11:"Nov",12:"Dez"}
     sel_mes = c1.selectbox("Mês", list(meses.keys()), index=datetime.now().month-1, format_func=lambda x: meses[x])
     sel_ano = c2.number_input("Ano", value=datetime.now().year)
     ref_date = datetime(sel_ano, sel_mes, 1)
-    
     st.markdown("---")
-    st.caption("FinanSaas v1.1")
+    st.caption("FinanSaas v1.2")
     selected = option_menu(
         menu_title=None,
         options=["Dashboard", "Extrato", "Cadastros", "Metas", "Nova Transação"],
@@ -254,18 +210,15 @@ with st.sidebar:
         st.session_state['user_email'] = None
         st.rerun()
 
-# Processa dados
 df_full, df_view, saldo_inicial = process_data(db_data, ref_date)
 
 # --- PÁGINAS ---
-
 if selected == "Dashboard":
     if not df_view.empty:
         rec = df_view[df_view['type']=='Receita']['amount'].sum()
         desp = df_view[df_view['type']=='Despesa']['amount'].sum()
         saldo_mes = rec - desp
-    else:
-        rec = 0.0; desp = 0.0; saldo_mes = 0.0
+    else: rec = 0.0; desp = 0.0; saldo_mes = 0.0
 
     c1, c2, c3 = st.columns(3)
     c1.markdown(f'<div class="color-card bg-green"><div><div class="lbl-small">Receitas</div><div class="val-big">R$ {rec:,.2f}</div></div><div class="cc-icon">↑</div></div>', unsafe_allow_html=True)
@@ -288,15 +241,7 @@ if selected == "Dashboard":
         if not df_view.empty:
             df_pie = df_view[df_view['type']=='Despesa']
             if not df_pie.empty:
-                # --- CORREÇÃO 1: CORES FIXAS NAS CATEGORIAS ---
-                fig = px.pie(
-                    df_pie, 
-                    values='amount', 
-                    names='category', 
-                    hole=0.6,
-                    color='category', # Mapeia pela coluna categoria
-                    color_discrete_map=CATEGORY_COLORS # Usa nosso dicionário
-                )
+                fig = px.pie(df_pie, values='amount', names='category', hole=0.6, color='category', color_discrete_map=CATEGORY_COLORS)
                 fig.update_layout(height=250, showlegend=False, margin=dict(l=0,r=0,t=0,b=0))
                 st.plotly_chart(fig, use_container_width=True)
             else: st.info("Sem despesas.")
@@ -311,7 +256,6 @@ elif selected == "Extrato":
         df_edit = df_full.sort_values('date', ascending=False).copy()
         df_edit['Excluir'] = False
         contas = db_data.get('accounts', []) + [c['name'] for c in db_data.get('cards', [])]
-        
         cats = list(CATEGORY_COLORS.keys())
 
         edited = st.data_editor(
@@ -339,15 +283,10 @@ elif selected == "Extrato":
 elif selected == "Cadastros":
     st.markdown("### ⚙️ Cadastros")
     tab1, tab2 = st.tabs(["Cartões", "Contas"])
-    
     with tab1:
         cdf = pd.DataFrame(db_data.get('cards', []))
         if cdf.empty: cdf = pd.DataFrame(columns=["name", "limit", "closing_day", "due_day"])
-        
         if 'limit' in cdf.columns: cdf['limit'] = cdf['limit'].apply(safe_float)
-        if 'closing_day' in cdf.columns: cdf['closing_day'] = cdf['closing_day'].apply(safe_float)
-        if 'due_day' in cdf.columns: cdf['due_day'] = cdf['due_day'].apply(safe_float)
-
         cdf['Excluir'] = False
         ed_cards = st.data_editor(cdf, num_rows="dynamic", use_container_width=True, hide_index=True, column_config={"Excluir": st.column_config.CheckboxColumn(default=False)})
         if st.button("Salvar Cartões"):
@@ -370,14 +309,10 @@ elif selected == "Cadastros":
 
 elif selected == "Metas":
     st.markdown("### 🎯 Metas")
-    st.info("Você pode editar os valores e cores diretamente na tabela abaixo.")
-
+    st.info("Você pode editar os valores diretamente na tabela abaixo.")
     current_goals = db_data.get('goals', [])
-    
-    if not current_goals:
-        gdf = pd.DataFrame(columns=["name", "target", "current", "color"])
-    else:
-        gdf = pd.DataFrame(current_goals)
+    if not current_goals: gdf = pd.DataFrame(columns=["name", "target", "current", "color"])
+    else: gdf = pd.DataFrame(current_goals)
 
     if not gdf.empty:
         gdf['target'] = gdf['target'].apply(safe_float)
@@ -388,7 +323,14 @@ elif selected == "Metas":
 
     gdf['Excluir'] = False
 
-    # --- CORREÇÃO 2: ColorColumn PARA PICKER DE CORES ---
+    # --- CORREÇÃO BLINDADA DO COLOR PICKER ---
+    # Verifica se ColorColumn existe (Versão nova do Streamlit)
+    if hasattr(st.column_config, 'ColorColumn'):
+        color_conf = st.column_config.ColorColumn("Cor da Meta", help="Escolha uma cor")
+    else:
+        # Fallback para versões antigas: Caixa de Texto com validação Regex
+        color_conf = st.column_config.TextColumn("Cor (Hex)", help="Ex: #FF0000", validate="^#[0-9a-fA-F]{6}$")
+
     edited_goals = st.data_editor(
         gdf,
         column_config={
@@ -396,18 +338,16 @@ elif selected == "Metas":
             "name": st.column_config.TextColumn("Nome da Meta", required=True),
             "target": st.column_config.NumberColumn("Valor Alvo (R$)", min_value=0.0, format="R$ %.2f"),
             "current": st.column_config.NumberColumn("Valor Atual (R$)", min_value=0.0, format="R$ %.2f"),
-            "color": st.column_config.ColorColumn("Cor da Meta", help="Escolha uma cor"), # AQUI MUDOU
+            "color": color_conf, 
         },
-        num_rows="dynamic",
-        use_container_width=True,
-        hide_index=True
+        num_rows="dynamic", use_container_width=True, hide_index=True
     )
 
     if st.button("💾 Salvar Metas"):
         valid_goals = edited_goals[edited_goals['Excluir'] == False].drop(columns=['Excluir'])
         db_data['goals'] = valid_goals.to_dict(orient='records')
         save_user_data(db_data)
-        st.success("Metas atualizadas com sucesso!")
+        st.success("Metas atualizadas!")
         st.rerun()
 
     if db_data.get('goals'):
@@ -418,7 +358,6 @@ elif selected == "Metas":
             target = safe_float(g.get('target', 1.0))
             if target == 0: target = 1.0
             current = safe_float(g.get('current', 0.0))
-            
             pct = (current / target * 100)
             color = g.get('color', '#2D9CDB')
             
@@ -434,9 +373,7 @@ elif selected == "Metas":
 
 elif selected == "Nova Transação":
     st.markdown("### ➕ Nova Transação")
-    
     st.markdown('<div class="white-card">', unsafe_allow_html=True)
-    
     tab_tx, tab_meta = st.tabs(["Movimentação Comum", "Enviar para Meta 🎯"])
     
     with tab_tx:
@@ -447,10 +384,8 @@ elif selected == "Nova Transação":
             dt = c1.date_input("Data", datetime.now())
             contas = db_data.get('accounts', []) + [c['name'] for c in db_data.get('cards', [])]
             acc = c2.selectbox("Conta", contas)
-            
-            cats = list(CATEGORY_COLORS.keys()) # Usa as chaves do dicionário
+            cats = list(CATEGORY_COLORS.keys())
             cat = st.selectbox("Categoria", cats)
-            
             stt = st.radio("Status", ["Pago", "Pendente"], horizontal=True)
             desc = st.text_input("Descrição")
             if st.form_submit_button("Salvar Movimentação"):
@@ -460,45 +395,33 @@ elif selected == "Nova Transação":
                 st.success("Salvo!")
 
     with tab_meta:
-        st.info("Isso criará uma despesa na conta de origem e aumentará o saldo da meta automaticamente.")
+        st.info("Isso criará uma despesa na conta de origem e aumentará o saldo da meta.")
         current_goals = db_data.get('goals', [])
-        
-        if not current_goals:
-            st.warning("Você ainda não criou nenhuma meta. Vá na aba 'Metas' primeiro.")
+        if not current_goals: st.warning("Sem metas criadas.")
         else:
             with st.form("meta_tx"):
                 val_m = st.number_input("Valor do Aporte", min_value=0.0, step=10.0)
-                
                 c_m1, c_m2 = st.columns(2)
-                dt_m = c_m1.date_input("Data do Aporte", datetime.now())
-                
+                dt_m = c_m1.date_input("Data", datetime.now())
                 acc_origin = c_m2.selectbox("Sairá de qual conta?", db_data.get('accounts', []) + [c['name'] for c in db_data.get('cards', [])])
-                
                 goal_names = [g['name'] for g in current_goals]
                 target_goal_name = st.selectbox("Para qual meta?", goal_names)
-                
                 if st.form_submit_button("Realizar Aporte"):
                     nt = {
                         "id": int(datetime.now().timestamp()), 
-                        "date": dt_m.strftime("%Y-%m-%d"), 
-                        "type": "Despesa", 
-                        "amount": val_m, 
-                        "account": acc_origin, 
-                        "category": "Investimento", 
-                        "status": "Pago", 
+                        "date": dt_m.strftime("%Y-%m-%d"), "type": "Despesa", 
+                        "amount": val_m, "account": acc_origin, 
+                        "category": "Investimento", "status": "Pago", 
                         "desc": f"Aporte na Meta: {target_goal_name}"
                     }
                     db_data['transactions'].append(nt)
-                    
                     for g in db_data['goals']:
                         if g['name'] == target_goal_name:
                             current_val = safe_float(g.get('current', 0))
                             g['current'] = current_val + val_m
                             break
-                    
                     save_user_data(db_data)
-                    st.success(f"Aporte de R$ {val_m} realizado em '{target_goal_name}'!")
+                    st.success("Aporte Realizado!")
                     time.sleep(1)
                     st.rerun()
-
     st.markdown('</div>', unsafe_allow_html=True)
