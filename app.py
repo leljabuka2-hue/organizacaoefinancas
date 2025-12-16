@@ -13,10 +13,17 @@ st.set_page_config(page_title="FinanSaas", page_icon="💎", layout="wide")
 
 # --- 2. DEFINIÇÃO DE CORES DAS CATEGORIAS ---
 CATEGORY_COLORS = {
-    "Alimentação": "#FF9F43", "Moradia": "#54A0FF", "Transporte": "#F368E0",
-    "Lazer": "#00D2D3", "Saúde": "#FF6B6B", "Educação": "#5F27CD",
-    "Salário": "#1DD1A1", "Investimento": "#222F3E", "Assinaturas": "#8395A7",
-    "Compras": "#FF9FF3", "Outros": "#C8D6E5"
+    "Alimentação": "#FF9F43",   # Laranja
+    "Moradia": "#54A0FF",       # Azul
+    "Transporte": "#F368E0",    # Rosa
+    "Lazer": "#00D2D3",         # Turquesa
+    "Saúde": "#FF6B6B",         # Vermelho
+    "Educação": "#5F27CD",      # Roxo
+    "Salário": "#1DD1A1",       # Verde Claro
+    "Investimento": "#222F3E",  # Azul Escuro
+    "Assinaturas": "#8395A7",   # Cinza Azulado
+    "Compras": "#FF9FF3",       # Rosa Claro
+    "Outros": "#C8D6E5"         # Cinza Claro
 }
 
 # --- CSS PERSONALIZADO ---
@@ -26,6 +33,8 @@ def inject_custom_css():
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
         .stApp { background-color: #F4F7FC; font-family: 'Nunito', sans-serif; }
         .block-container { padding-top: 1.5rem; padding-bottom: 3rem; }
+        
+        /* Cards */
         .white-card {
             background-color: #FFFFFF; border-radius: 16px; padding: 24px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.03); margin-bottom: 20px;
@@ -36,6 +45,8 @@ def inject_custom_css():
             padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08);
             text-align: center;
         }
+        
+        /* Métricas */
         .color-card {
             border-radius: 16px; padding: 20px; color: white;
             box-shadow: 0 8px 15px rgba(0,0,0,0.05); display: flex;
@@ -48,6 +59,8 @@ def inject_custom_css():
         .bg-blue { background: linear-gradient(135deg, #2D9CDB 0%, #2F80ED 100%); }
         .bg-green { background: linear-gradient(135deg, #27AE60 0%, #219653 100%); }
         .bg-red { background: linear-gradient(135deg, #EB5757 0%, #C0392B 100%); }
+        
+        /* UI Elements */
         div.stButton > button:first-child {
             background-color: #2D9CDB; color: white; border: none; border-radius: 8px; font-weight: 600; width: 100%;
         }
@@ -59,13 +72,18 @@ def inject_custom_css():
 
 inject_custom_css()
 
+# --- VERIFICAÇÃO DE VERSÃO (SEGURANÇA) ---
+# Mostra aviso se a versão for antiga e não suportar ColorPicker
+if st.__version__ < "1.35.0":
+    st.error(f"⚠️ ATENÇÃO: Sua versão do Streamlit ({st.__version__}) está desatualizada. O seletor de cores não funcionará. Atualize o arquivo 'requirements.txt' para 'streamlit>=1.35.0' e reinicie o app.")
+
 # --- FUNÇÕES UTILITÁRIAS ---
 def safe_float(val):
     if val is None: return 0.0
     try: return float(val)
     except (ValueError, TypeError): return 0.0
 
-# --- GESTÃO DE DADOS (JSON MULTI-USER) ---
+# --- GESTÃO DE DADOS ---
 DB_FILE = 'finsaas_secure_db.json'
 
 def init_db():
@@ -198,7 +216,7 @@ with st.sidebar:
     sel_ano = c2.number_input("Ano", value=datetime.now().year)
     ref_date = datetime(sel_ano, sel_mes, 1)
     st.markdown("---")
-    st.caption("FinanSaas v1.2")
+    st.caption("FinanSaas v1.3")
     selected = option_menu(
         menu_title=None,
         options=["Dashboard", "Extrato", "Cadastros", "Metas", "Nova Transação"],
@@ -230,8 +248,11 @@ if selected == "Dashboard":
         st.markdown('<div class="white-card"><h5>Fluxo Diário</h5>', unsafe_allow_html=True)
         if not df_view.empty:
             daily = df_view.groupby('date')['amount'].sum().reset_index()
-            fig = px.bar(daily, x='date', y='amount', color_discrete_sequence=['#2D9CDB'])
-            fig.update_layout(height=250, margin=dict(l=0,r=0,t=0,b=0))
+            # MELHORIA NO DASHBOARD: Cores nas barras também
+            fig = px.bar(daily, x='date', y='amount', 
+                         title="",
+                         color_discrete_sequence=['#2D9CDB'])
+            fig.update_layout(height=250, margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='white', plot_bgcolor='white')
             st.plotly_chart(fig, use_container_width=True)
         else: st.info("Sem dados.")
         st.markdown('</div>', unsafe_allow_html=True)
@@ -241,8 +262,11 @@ if selected == "Dashboard":
         if not df_view.empty:
             df_pie = df_view[df_view['type']=='Despesa']
             if not df_pie.empty:
-                fig = px.pie(df_pie, values='amount', names='category', hole=0.6, color='category', color_discrete_map=CATEGORY_COLORS)
-                fig.update_layout(height=250, showlegend=False, margin=dict(l=0,r=0,t=0,b=0))
+                # MELHORIA NO DASHBOARD: Cores fixas e Legenda Ativa
+                fig = px.pie(df_pie, values='amount', names='category', hole=0.6, 
+                             color='category', color_discrete_map=CATEGORY_COLORS)
+                # Ativa a legenda (showlegend=True) para clareza
+                fig.update_layout(height=250, showlegend=True, margin=dict(l=0,r=0,t=0,b=0), legend=dict(orientation="h", yanchor="bottom", y=-0.2))
                 st.plotly_chart(fig, use_container_width=True)
             else: st.info("Sem despesas.")
         else: st.info("Sem dados.")
@@ -323,14 +347,7 @@ elif selected == "Metas":
 
     gdf['Excluir'] = False
 
-    # --- CORREÇÃO BLINDADA DO COLOR PICKER ---
-    # Verifica se ColorColumn existe (Versão nova do Streamlit)
-    if hasattr(st.column_config, 'ColorColumn'):
-        color_conf = st.column_config.ColorColumn("Cor da Meta", help="Escolha uma cor")
-    else:
-        # Fallback para versões antigas: Caixa de Texto com validação Regex
-        color_conf = st.column_config.TextColumn("Cor (Hex)", help="Ex: #FF0000", validate="^#[0-9a-fA-F]{6}$")
-
+    # --- CORREÇÃO: USO DIRETO DE ColorColumn (REQUER STREAMLIT NOVO) ---
     edited_goals = st.data_editor(
         gdf,
         column_config={
@@ -338,7 +355,7 @@ elif selected == "Metas":
             "name": st.column_config.TextColumn("Nome da Meta", required=True),
             "target": st.column_config.NumberColumn("Valor Alvo (R$)", min_value=0.0, format="R$ %.2f"),
             "current": st.column_config.NumberColumn("Valor Atual (R$)", min_value=0.0, format="R$ %.2f"),
-            "color": color_conf, 
+            "color": st.column_config.ColorColumn("Cor da Meta", help="Escolha uma cor"), 
         },
         num_rows="dynamic", use_container_width=True, hide_index=True
     )
