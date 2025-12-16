@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-import plotly.graph_objects as go
 import plotly.express as px
-from datetime import datetime, timedelta, date
+from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from streamlit_option_menu import option_menu
 
@@ -69,6 +68,14 @@ def inject_custom_css():
         /* Ajustes Plotly e Tabelas */
         .js-plotly-plot .plotly .modebar { display: none !important; }
         div[data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; border: 1px solid #eee; }
+        
+        /* Botão Salvar */
+        div.stButton > button:first-child {
+            background-color: #2D9CDB;
+            color: white;
+            border: none;
+            border-radius: 8px;
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -78,6 +85,7 @@ inject_custom_css()
 DB_FILE = 'finance_full_v3.json'
 
 def init_db():
+    # Cria o arquivo se não existir
     if not os.path.exists(DB_FILE):
         default_db = {
             "transactions": [],
@@ -93,7 +101,13 @@ def init_db():
 
 def load_db():
     init_db()
-    with open(DB_FILE, 'r') as f: return json.load(f)
+    try:
+        with open(DB_FILE, 'r') as f: return json.load(f)
+    except:
+        # Se der erro de leitura (arquivo corrompido), recria
+        os.remove(DB_FILE)
+        init_db()
+        with open(DB_FILE, 'r') as f: return json.load(f)
 
 def save_db(data):
     with open(DB_FILE, 'w') as f: json.dump(data, f, indent=4)
@@ -101,25 +115,32 @@ def save_db(data):
 # --- ENGINE LÓGICA (O CÉREBRO) ---
 def process_data(db, selected_date):
     """
-    Processa todas as transações e aplica a lógica de cartão de crédito
-    para determinar em qual mês a despesa realmente impacta o orçamento (competência).
+    Processa todas as transações e aplica a lógica de cartão de crédito.
     """
-    txs = db['transactions']
-    cards = {c['name']: c for c in db['cards']}
+    txs = db.get('transactions', [])
+    cards_list = db.get('cards', []) 
+    cards = {c['name']: c for c in cards_list}
     
+    # CORREÇÃO CRÍTICA: Retorna 3 valores vazios se não houver dados
     if not txs:
-        return pd.DataFrame(), 0.0, 0.0, 0.0, pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), 0.0
 
     df = pd.DataFrame(txs)
+    
+    # Verificação de colunas obrigatórias
+    if 'date' not in df.columns or 'amount' not in df.columns:
+         return pd.DataFrame(), pd.DataFrame(), 0.0
+
+    # Conversão de tipos
     df['date'] = pd.to_datetime(df['date'])
     df['amount'] = df['amount'].astype(float)
     
     # Lógica de Competência (Virada de Fatura)
     def get_competence_date(row):
         # Se for despesa de cartão de crédito
-        if row['account'] in cards and row['type'] == 'Despesa':
+        if row.get('account') in cards and row.get('type') == 'Despesa':
             card_info = cards[row['account']]
-            closing_day = card_info['closing_day']
+            closing_day = int(card_info['closing_day'])
             
             # Se a compra foi feita DEPOIS ou NO dia do fechamento, cai no mês seguinte
             if row['date'].day >= closing_day:
@@ -131,16 +152,14 @@ def process_data(db, selected_date):
     df['comp_mes'] = df['competencia'].dt.month
     df['comp_ano'] = df['competencia'].dt.year
 
-    # 1. Filtra dados do Mês Selecionado (Visão de Caixa)
+    # 1. Filtra dados do Mês Selecionado (Visão de Caixa/Competência)
     df_mes = df[(df['comp_mes'] == selected_date.month) & (df['comp_ano'] == selected_date.year)]
     
     # 2. Calcula Saldo Inicial (Tudo que aconteceu antes deste mês)
-    # Considera data de competência para ser preciso
     mask_anterior = (df['competencia'] < datetime(selected_date.year, selected_date.month, 1))
     df_anterior = df[mask_anterior]
     
-    # Saldo acumulado (apenas pagos contam para o saldo real da conta, mas aqui simplificamos para visão gerencial)
-    # Assumimos: Saldo Inicial = Receitas Realizadas - Despesas Realizadas até o mês anterior
+    # Saldo acumulado (Receitas Pagas - Despesas Pagas)
     rec_ant = df_anterior[(df_anterior['type'] == 'Receita') & (df_anterior['status'] == 'Pago')]['amount'].sum()
     desp_ant = df_anterior[(df_anterior['type'] == 'Despesa') & (df_anterior['status'] == 'Pago')]['amount'].sum()
     saldo_inicial = rec_ant - desp_ant
@@ -157,7 +176,9 @@ with st.sidebar:
     # MÁQUINA DO TEMPO (FILTRO)
     col_mes, col_ano = st.columns(2)
     with col_mes:
-        sel_mes = st.selectbox("Mês", list(range(1, 13)), index=datetime.now().month-1, format_func=lambda x: datetime(2000, x, 1).strftime('%B').capitalize())
+        mes_nomes = {1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril", 5: "Maio", 6: "Junho", 
+                     7: "Julho", 8: "Agosto", 9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro"}
+        sel_mes = st.selectbox("Mês", list(mes_nomes.keys()), index=datetime.now().month-1, format_func=lambda x: mes_nomes[x])
     with col_ano:
         sel_ano = st.number_input("Ano", value=datetime.now().year, step=1)
     
@@ -180,7 +201,7 @@ with st.sidebar:
     )
     
     st.markdown("---")
-    st.info(f"📅 Visualizando dados de: **{ref_date.strftime('%B/%Y')}**")
+    st.info(f"📅 Visualizando: **{mes_nomes[sel_mes]}/{sel_ano}**")
 
 # PROCESSA DADOS GLOBAIS
 df_full, df_view, saldo_inicial = process_data(db_data, ref_date)
@@ -262,6 +283,8 @@ if selected == "Dashboard":
                     st.plotly_chart(fig_pie, use_container_width=True)
                 else:
                     st.write("Sem despesas.")
+            else:
+                st.write("Sem dados.")
             st.markdown('</div>', unsafe_allow_html=True)
 
     with col_side:
@@ -317,7 +340,6 @@ elif selected == "Extrato / Edição":
         st.warning("Nenhum dado encontrado.")
     else:
         # Prepara dataframe para o Data Editor
-        # Mostramos TODAS as transações, mas ordenadas por data
         df_edit = df_full.sort_values(by='date', ascending=False).copy()
         df_edit['Excluir'] = False # Checkbox para deletar
         
@@ -326,9 +348,7 @@ elif selected == "Extrato / Edição":
             df_edit,
             column_config={
                 "Excluir": st.column_config.CheckboxColumn(help="Marque para deletar permanentemente", default=False),
-                "id": None, # Esconde ID
-                "competencia": None, # Esconde campo calculado
-                "comp_mes": None, "comp_ano": None,
+                "id": None, "competencia": None, "comp_mes": None, "comp_ano": None,
                 "date": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
                 "amount": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
                 "type": st.column_config.SelectboxColumn("Tipo", options=["Receita", "Despesa"], required=True),
@@ -343,20 +363,23 @@ elif selected == "Extrato / Edição":
             height=500
         )
         
-        col_act1, col_act2 = st.columns([1, 5])
-        with col_act1:
-            if st.button("💾 Salvar Alterações", type="primary"):
-                # Filtra removidos
-                final_df = edited_df[edited_df['Excluir'] == False].drop(columns=['Excluir', 'competencia', 'comp_mes', 'comp_ano'], errors='ignore')
-                
-                # Converte datas para string (JSON serializable)
-                final_df['date'] = final_df['date'].apply(lambda x: x.strftime('%Y-%m-%d') if isinstance(x, (datetime, date)) else x)
-                
-                # Salva
-                db_data['transactions'] = final_df.to_dict(orient='records')
-                save_db(db_data)
-                st.success("Dados atualizados!")
-                st.rerun()
+        if st.button("💾 Salvar Alterações", type="primary"):
+            # Filtra removidos
+            final_df = edited_df[edited_df['Excluir'] == False].drop(columns=['Excluir', 'competencia', 'comp_mes', 'comp_ano'], errors='ignore')
+            
+            # Converte datas para string de forma segura para o JSON
+            def date_to_str(val):
+                if isinstance(val, (datetime, date)):
+                    return val.strftime('%Y-%m-%d')
+                return val
+
+            final_df['date'] = final_df['date'].apply(date_to_str)
+            
+            # Salva
+            db_data['transactions'] = final_df.to_dict(orient='records')
+            save_db(db_data)
+            st.success("Dados atualizados!")
+            st.rerun()
 
 # ==================================================================================================
 # PÁGINA 3: CARTÕES DE CRÉDITO
@@ -389,8 +412,7 @@ elif selected == "Cartões":
             st.info("Nenhum cartão cadastrado.")
         else:
             for card in db_data['cards']:
-                # Calcula fatura atual (gasto no cartão no mês da competência)
-                # Filtra gastos deste cartão na competência selecionada
+                # Calcula fatura do MÊS SELECIONADO na sidebar
                 gasto_fatura = df_view[(df_view['account'] == card['name']) & (df_view['type'] == 'Despesa')]['amount'].sum()
                 pct_limit = (gasto_fatura / card['limit'] * 100) if card['limit'] > 0 else 0
                 
@@ -401,7 +423,7 @@ elif selected == "Cartões":
                         <div style="font-size: 12px; background: #eee; padding: 4px 8px; border-radius: 4px;">Vence dia {card['due_day']}</div>
                     </div>
                     <div style="margin-top: 10px; display: flex; justify-content: space-between;">
-                        <span style="color: #666;">Fatura Atual ({ref_date.strftime('%b')})</span>
+                        <span style="color: #666;">Fatura Atual ({ref_date.strftime('%B')})</span>
                         <span style="font-weight: bold; color: #EB5757;">R$ {gasto_fatura:,.2f}</span>
                     </div>
                     <div style="width: 100%; background-color: #eee; height: 8px; border-radius: 4px; margin-top: 8px;">
@@ -412,12 +434,11 @@ elif selected == "Cartões":
                 """, unsafe_allow_html=True)
 
 # ==================================================================================================
-# PÁGINA 4: METAS (GAMIFICATION)
+# PÁGINA 4: METAS
 # ==================================================================================================
 elif selected == "Metas":
     st.markdown("### 🎯 Objetivos Financeiros")
     
-    # Criador de Metas
     with st.expander("➕ Nova Meta"):
         with st.form("new_goal"):
             g_nome = st.text_input("Nome da Meta (Ex: Viagem Disney)")
@@ -429,8 +450,10 @@ elif selected == "Metas":
                 save_db(db_data)
                 st.rerun()
 
-    # Visualização das Metas
     cols = st.columns(3)
+    if not db_data['goals']:
+        st.info("Nenhuma meta criada.")
+    
     for i, goal in enumerate(db_data['goals']):
         pct = (goal['current'] / goal['target']) * 100 if goal['target'] > 0 else 0
         with cols[i % 3]:
@@ -465,14 +488,13 @@ elif selected == "Nova Transação":
             
             c1, c2 = st.columns(2)
             data_t = c1.date_input("Data", datetime.now())
-            # Carrega contas dinamicamente (Carteira + Cartões)
+            
+            # Carrega opções de contas atualizadas
             opcoes_contas = ["Carteira"] + [c['name'] for c in db_data['cards']]
             conta = c2.selectbox("Conta / Cartão", opcoes_contas)
             
             cat = st.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Educação", "Salário", "Investimento", "Outros"])
             desc = st.text_input("Descrição (Opcional)")
-            
-            # Se for cartão, não tem "Pago/Pendente" tradicional na hora da compra, mas vamos manter para controle
             status = st.radio("Situação", ["Pago", "Pendente"], horizontal=True)
             
             if st.form_submit_button("Confirmar Lançamento"):
@@ -489,7 +511,6 @@ elif selected == "Nova Transação":
                 db_data['transactions'].append(new_trans)
                 save_db(db_data)
                 
-                # Feedback Visual
                 st.markdown(f"""
                 <div style="padding: 10px; background-color: #D1FAE5; color: #065F46; border-radius: 8px; text-align: center; margin-top: 10px;">
                     ✅ Lançamento de <b>R$ {valor:.2f}</b> salvo com sucesso!
